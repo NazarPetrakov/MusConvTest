@@ -1,8 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Net.Http;
 using System.Threading.Tasks;
 using AmazonMusicParser.Models;
 using AmazonMusicParser.Services.Interfaces;
+using Avalonia.Media.Imaging;
 using HtmlAgilityPack;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
@@ -50,15 +54,32 @@ public class AmazonMusicParserService : IMusicParserService
         await Task.Delay(1000);
 
         var avatarStringUrl = detailHeaderElement.GetAttribute("image-src")?.Trim() ?? "";
-        
+
         if (avatarStringUrl.StartsWith("//"))
         {
             avatarStringUrl = "https:" + avatarStringUrl;
         }
-        Uri.TryCreate(avatarStringUrl, UriKind.Absolute, out Uri? avatarUri);
 
-        var playlist = new Playlist { Songs = new List<Song>(), AvatarUrl = avatarUri };
-        
+        Uri.TryCreate(avatarStringUrl, UriKind.Absolute, out Uri? avatarUri);
+        Bitmap? avatarBitmap = new Bitmap("Assets/default_cover.png");
+
+        if (avatarUri != null)
+        {
+            try
+            {
+                using var httpClient = new HttpClient();
+                var imageBytes = await httpClient.GetByteArrayAsync(avatarUri);
+                using var ms = new MemoryStream(imageBytes);
+                avatarBitmap = new Bitmap(ms);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to load image from {avatarUri}: {ex.Message}");
+            }
+        }
+
+        var playlist = new Playlist { Songs = new List<Song>(), Avatar = avatarBitmap };
+
         if (contentType == "album")
         {
             playlist.Name = detailHeaderElement.GetAttribute("headline")?.Trim() ?? "Unknown Album";
